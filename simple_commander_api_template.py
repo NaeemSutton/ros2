@@ -4,11 +4,51 @@ from nav2_simple_commander.robot_navigator import BasicNavigator
 from geometry_msgs.msg import PoseStamped
 import tf_transformations
 
-def create_pose_stamped(navigator, position_x, position_y, rotation_z):
+# Hilbert curve generation functions
+def rot(n, rx, ry, point):
+    if not ry:
+        if rx:
+            point[0] = (n - 1) - point[0]
+            point[1] = (n - 1) - point[1]
+        point[0], point[1] = point[1], point[0]
+
+def calcD(n, point):
+    d = 0
+    s = n >> 1
+    while s > 0:
+        rx = ((point[0] & s) != 0)
+        ry = ((point[1] & s) != 0)
+        d += s * s * ((3 * rx) ^ ry)
+        rot(s, rx, ry, point)
+        s >>= 1
+    return d
+
+def fromD(n, d):
+    p = [0, 0]
+    t = d
+    s = 1
+    while s < n:
+        rx = ((t & 2) != 0)
+        ry = (((t + (rx << 1)) & 1) != 0)
+        rot(s, rx, ry, p)
+        p[0] += s * rx
+        p[1] += s * ry
+        t >>= 2
+        s <<= 1
+    return p
+
+def getPointsForCurve(order):
+    points = []
+    n = 1 << order
+    for d in range(n * n):
+        points.append(fromD(n, d))
+    return points
+
+def create_pose_stamped(position_x, position_y, rotation_z):
     q_x, q_y, q_z, q_w = tf_transformations.quaternion_from_euler(0.0, 0.0, rotation_z)
     goal_pose = PoseStamped()
     goal_pose.header.frame_id = 'map'
-    goal_pose.header.stamp = navigator.get_clock().now().to_msg()
+    goal_pose.header.stamp = rclpy.time.Time().to_msg()  # Use rclpy time
     goal_pose.pose.position.x = position_x
     goal_pose.pose.position.y = position_y
     goal_pose.pose.position.z = 0.0
@@ -25,31 +65,26 @@ def main():
 
     # --- Set initial pose ---
     # !!! Comment if the initial pose is already set !!!
-    initial_pose = create_pose_stamped(nav, 0.0, 0.0, 0.0)
-    #nav.setInitialPose(initial_pose)
+    initial_pose = create_pose_stamped(0.0, 0.0, 0.0)
+    # nav.setInitialPose(initial_pose)
 
     # --- Wait for Nav2 ---
     nav.waitUntilNav2Active()
 
-    # --- Create some Nav2 goal poses ---
-    goal_pose1 = create_pose_stamped(nav, 3.5, 1.0, 1.57)
-    goal_pose2 = create_pose_stamped(nav, 2.0, 2.5, 3.14)
-    goal_pose3 = create_pose_stamped(nav, 0.5, 1.0, 0.0)
+    # --- Generate Hilbert curve waypoints ---
+    order = 3  # Example order for Hilbert curve
+    hilbert_points = getPointsForCurve(order)
 
-    # --- Going to one pose ---
-    nav.goToPose(goal_pose1)
-    while not nav.isTaskComplete():
-            feedback = nav.getFeedback()
-            # print(feedback)
+    waypoints = []
+    for point in hilbert_points:
+        pose = create_pose_stamped(point[0], point[1], 0.0)  # Assume rotation is 0 for simplicity
+        waypoints.append(pose)
 
     # --- Follow Waypoints ---
-    # waypoints = [goal_pose1, goal_pose2, goal_pose3]
-    # for i in range(3):
-    #     nav.followWaypoints(waypoints)
-
-    #     while not nav.isTaskComplete():
-    #         feedback = nav.getFeedback()
-    #         # print(feedback)
+    for waypoint in waypoints:
+        nav.goToPose(waypoint)
+        while not nav.isTaskComplete():
+            feedback = nav.getFeedback()
 
     # --- Get the result ---
     print(nav.getResult())
