@@ -63,34 +63,40 @@ def main():
     rclpy.init()
     nav = BasicNavigator()
 
-    # --- Set initial pose ---
-    # !!! Comment if the initial pose is already set !!!
-    initial_pose = create_pose_stamped(0.0, 0.0, 0.0)
-    # nav.setInitialPose(initial_pose)
+    try:
+        # --- Set initial pose ---
+        # !!! Comment if the initial pose is already set !!!
+        initial_pose = create_pose_stamped(0.0, 0.0, 0.0)
+        # nav.setInitialPose(initial_pose)
 
-    # --- Wait for Nav2 ---
-    nav.waitUntilNav2Active()
+        # --- Wait for Nav2 ---
+        nav.waitUntilNav2Active()
 
-    # --- Generate Hilbert curve waypoints ---
-    order = 3  # Example order for Hilbert curve
-    hilbert_points = getPointsForCurve(order)
+        # --- Generate Hilbert curve waypoints ---
+        order = 3  # Example order for Hilbert curve
+        hilbert_points = getPointsForCurve(order)
 
-    waypoints = []
-    for point in hilbert_points:
-        pose = create_pose_stamped(point[0], point[1], 0.0)  # Assume rotation is 0 for simplicity
-        waypoints.append(pose)
+        waypoints = []
+        for point in hilbert_points:
+            pose = create_pose_stamped(point[0], point[1], 0.0)  # Assume rotation is 0 for simplicity
+            waypoints.append(pose)
 
-    # --- Follow Waypoints ---
-    for waypoint in waypoints:
-        nav.goToPose(waypoint)
-        while not nav.isTaskComplete():
-            feedback = nav.getFeedback()
+        # --- Follow Waypoints ---
+        for waypoint in waypoints:
+            nav.goToPose(waypoint)
+            while not nav.isTaskComplete():
+                feedback = nav.getFeedback()
 
-    # --- Get the result ---
-    print(nav.getResult())
+        # --- Get the result ---
+        print(nav.getResult())
 
-    # --- Shutdown ROS2 communications ---
-    rclpy.shutdown()
+    except Exception as e:
+        print("An error occurred:", e)
+
+    finally:
+        # --- Shutdown ROS2 communications ---
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
+
