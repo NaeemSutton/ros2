@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+
+import rospy
+from nav_msgs.srv import LoadMap
+
+def load_map(map_file):
+    rospy.wait_for_service('/map_server/load_map')
+    try:
+        load_map_service = rospy.ServiceProxy('/map_server/load_map', LoadMap)
+        response = load_map_service(map_file)
+        if response.success:
+            rospy.loginfo("Map loaded successfully!")
+        else:
+            rospy.logerr("Failed to load map: %s", response.message)
+    except rospy.ServiceException as e:
+        rospy.logerr("Service call failed: %s", e)
+
+if __name__ == '__main__':
+    rospy.init_node('map_loader')
+    map_file = "/path/to/your/map.yaml"  # Modify this to the path of your map file
+    load_map(map_file)
